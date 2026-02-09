@@ -14,10 +14,10 @@ export type UserMutable = {
   log: (...data: string[]) => void;
 
   ready: () => void;
-  emit: (event: Event, message?: any) => void;
+  emit: (event: Event, message?: unknown) => void;
   close: () => void;
 
   //
 
-  incrementClickCount: () => void;
+  handleSnakeMove: (data: unknown) => void;
 };

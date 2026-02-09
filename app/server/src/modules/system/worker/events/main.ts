@@ -1,3 +1,3 @@
-import { clickEvent } from "./click.event.ts";
+import { snakeMoveEvent } from "./snake-move.event.ts";
 
-export const eventList = [clickEvent];
+export const eventList = [snakeMoveEvent];

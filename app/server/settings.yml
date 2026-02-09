@@ -1,8 +1,8 @@
 version: development
-name: Game Template
-repo: openhotel/game-template
+name: SnakeRoyale
+repo: alqubo/oh-snake-minigame
 kickFromCurrentRoom: true
 screen: windowed
 windowSize:
-  width: 200
-  height: 150
+  width: 300
+  height: 250

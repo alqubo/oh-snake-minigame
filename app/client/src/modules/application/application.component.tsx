@@ -1,9 +1,10 @@
 import React, { useMemo } from "react";
 import { AppComponent, CoreLoaderComponent } from "modules/application";
 import { NesterComponent } from "shared/components";
-import { SandboxComponent } from "modules/sandbox";
 import { InitialLoaderComponent } from "./components";
 import { AssetsProvider, LanguageProvider, ProxyProvider } from "shared/hooks";
+import { TasksProvider } from "shared/hooks/tasks";
+import { MultiplayerGameComponent } from "../snake/index.ts";
 
 export const ApplicationComponent = () => {
   const providers = useMemo(
@@ -11,6 +12,7 @@ export const ApplicationComponent = () => {
       AppComponent,
       //|\\|//|\\|//|\\|//|\\|//|\\|//|\\|//|\\|
       //|\\|//|\\|//|\\|//|\\|//|\\|//|\\|//|\\|
+      TasksProvider,
       InitialLoaderComponent,
       ProxyProvider,
       LanguageProvider,
@@ -18,7 +20,7 @@ export const ApplicationComponent = () => {
       CoreLoaderComponent,
       //|\\|//|\\|//|\\|//|\\|//|\\|//|\\|//|\\|
       //|\\|//|\\|//|\\|//|\\|//|\\|//|\\|//|\\|
-      SandboxComponent,
+      MultiplayerGameComponent,
     ],
     [],
   );

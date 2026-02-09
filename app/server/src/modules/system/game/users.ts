@@ -6,8 +6,6 @@ export const users = () => {
   let $userMap: Record<string, UserMutable> = {};
 
   const $getUser = (user: User): UserMutable => {
-    let clickCount = 0;
-
     const getAccountId = () => user.accountId;
     const getUsername = () => user.username;
 
@@ -15,23 +13,17 @@ export const users = () => {
       console.log(`${getUsername()} ${data.join(" ")}`);
     };
 
-    const incrementClickCount = () => {
-      clickCount++;
-      if (clickCount >= 10) {
-        System.worker.emit(ServerEvent.USER_REWARD, {
-          clientId: user.clientId,
-          amount: 10,
-        });
-        return close();
-      }
-      emit(Event.CLICK, { status: 200 });
-    };
-
     const ready = () => {
       log("ready");
+
+      System.game.snakeGame.addPlayer(
+        user.accountId,
+        user.username,
+        user.clientId,
+      );
     };
 
-    const emit = (event: Event, message?: any) => {
+    const emit = (event: Event, message?: unknown) => {
       System.worker.emit(ServerEvent.USER_DATA, {
         clientId: user.clientId,
         event,
@@ -45,6 +37,15 @@ export const users = () => {
       });
     };
 
+    const handleSnakeMove = (data: unknown) => {
+      if (data && typeof data === "object" && "direction" in data) {
+        System.game.snakeGame.updateDirection(
+          user.accountId,
+          data.direction as { x: number; y: number },
+        );
+      }
+    };
+
     return {
       getAccountId,
       getUsername,
@@ -55,7 +56,7 @@ export const users = () => {
       emit,
       close,
 
-      incrementClickCount,
+      handleSnakeMove,
     };
   };
 
@@ -66,8 +67,13 @@ export const users = () => {
   };
 
   const remove = (accountId: string) => {
-    $userMap[accountId].log("left");
-    delete $userMap[accountId];
+    const $user = $userMap[accountId];
+    if ($user) {
+      $user.log("left");
+
+      System.game.snakeGame.removePlayer(accountId);
+      delete $userMap[accountId];
+    }
   };
 
   const get = (accountId: string): UserMutable | null => {
