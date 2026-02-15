@@ -21,4 +21,6 @@ export type PlayerSnake = {
   foodEaten: number;
   kills: number;
   growthPending: number;
+  invincible: boolean;
+  invincibilityEndTime?: number;
 };
