@@ -2,6 +2,7 @@ import {
   ContainerComponent,
   GraphicsComponent,
   GraphicType,
+  HorizontalAlign,
 } from "@openhotel/pixi-components";
 import { TextComponent } from "shared/components";
 import { PlayerSnake } from "shared/types";
@@ -24,8 +25,10 @@ export const PlayerSnakeComponent = ({ player, isLocalPlayer }: Props) => {
       {head && (
         <TextComponent
           text={player.username}
+          maxWidth={60}
+          horizontalAlign={HorizontalAlign.CENTER}
           position={{
-            x: head.x * CELL_SIZE,
+            x: head.x * CELL_SIZE - CELL_SIZE * 2,
             y: head.y * CELL_SIZE - 10,
           }}
           tint={isLocalPlayer ? 0xffffff : player.color}

@@ -51,6 +51,28 @@ export const snakeGame = () => {
     return food.some((f) => f.x === pos.x && f.y === pos.y);
   };
 
+  const getMinDistanceToSnakes = (pos: Position): number => {
+    let minDistance = Infinity;
+
+    for (const player of Object.values(players)) {
+      for (const segment of player.snake) {
+        const distance =
+          Math.abs(pos.x - segment.x) + Math.abs(pos.y - segment.y);
+        minDistance = Math.min(minDistance, distance);
+      }
+    }
+
+    return minDistance;
+  };
+
+  const isSafeSpawnPosition = (pos: Position, minDistance: number): boolean => {
+    if (isPositionOccupied(pos)) {
+      return false;
+    }
+
+    return getMinDistanceToSnakes(pos) >= minDistance;
+  };
+
   const randomFreePosition = (): Position => {
     let attempts = 0;
     while (attempts < 100) {
@@ -75,13 +97,56 @@ export const snakeGame = () => {
     username: string,
     clientId: string,
   ): PlayerSnake => {
-    const startPos = randomFreePosition();
+    const MIN_SPAWN_DISTANCE = 3;
+    let startPos: Position;
+    let attempts = 0;
+    const maxAttempts = 200;
+
+    while (attempts < maxAttempts) {
+      startPos = randomPosition();
+
+      let canSpawn = true;
+
+      for (let i = 0; i < INITIAL_SNAKE_LENGTH; i++) {
+        const segmentPos = {
+          x: startPos.x - i,
+          y: startPos.y,
+        };
+
+        if (segmentPos.x < 0 || segmentPos.x >= BOARD_WIDTH_SIZE) {
+          canSpawn = false;
+          break;
+        }
+
+        if (!isSafeSpawnPosition(segmentPos, MIN_SPAWN_DISTANCE)) {
+          canSpawn = false;
+          break;
+        }
+      }
+
+      if (canSpawn) {
+        console.log(
+          `${username} spawned at safe position (${startPos!.x}, ${startPos!.y}) after ${attempts} attempts`,
+        );
+        break;
+      }
+
+      attempts++;
+    }
+
+    if (attempts >= maxAttempts) {
+      startPos = randomPosition();
+      console.log(
+        `${username} spawned at random position (no safe position found after ${maxAttempts} attempts)`,
+      );
+    }
+
     const snake: Position[] = [];
 
     for (let i = 0; i < INITIAL_SNAKE_LENGTH; i++) {
       snake.push({
-        x: startPos.x - i,
-        y: startPos.y,
+        x: startPos!.x - i,
+        y: startPos!.y,
       });
     }
 
