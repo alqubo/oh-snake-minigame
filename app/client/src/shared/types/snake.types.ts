@@ -17,6 +17,7 @@ export type PlayerSnake = {
   score: number;
   foodEaten: number;
   kills: number;
+  invincible?: boolean;
 };
 
 export type GameState = {
