@@ -9,7 +9,7 @@ import {
 } from "@openhotel/pixi-components";
 import { TextComponent } from "shared/components";
 import { useProxy } from "shared/hooks";
-import { GameState, Direction, SpeedChangedEvent } from "shared/types";
+import { GameState, Direction } from "shared/types";
 import { PlayerSnakeComponent } from "./player-snake.component.tsx";
 import { FoodComponent } from "./food.component.tsx";
 import { SpeedIndicatorComponent } from "./speed-indicator.component.tsx";
@@ -33,10 +33,6 @@ export const MultiplayerGameComponent: React.FC = () => {
   });
 
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
-  const [deadMessage, setDeadMessage] = useState<string | null>(null);
-  const [speedChangeMessage, setSpeedChangeMessage] = useState<string | null>(
-    null,
-  );
 
   useEffect(() => {
     on("$$settings" as any, (config) => {
@@ -52,7 +48,6 @@ export const MultiplayerGameComponent: React.FC = () => {
     });
 
     const removeOnPlayerJoined = on(Event.PLAYER_JOINED, (data: any) => {
-      console.log(`Player ${data.username} joined`);
       if (!localPlayerId) {
         setLocalPlayerId(data.accountId);
       }
@@ -63,22 +58,9 @@ export const MultiplayerGameComponent: React.FC = () => {
     });
 
     const removeOnPlayerDied = on(Event.PLAYER_DIED, (data: any) => {
-      console.log(`Player ${data.username} died`);
       if (data.accountId === localPlayerId) {
-        setDeadMessage("¡Has muerto! Presiona R para reintentar");
+        exit();
       }
-    });
-
-    const removeOnSpeedChanged = on(Event.SPEED_CHANGED, (data: any) => {
-      const speedData = data as SpeedChangedEvent;
-      console.log(
-        `Speed increased! Level ${speedData.speedLevel}, Tick rate: ${speedData.tickRate}ms`,
-      );
-
-      setSpeedChangeMessage(
-        `¡VELOCIDAD AUMENTADA! Nivel ${speedData.speedLevel}`,
-      );
-      setTimeout(() => setSpeedChangeMessage(null), 2000);
     });
 
     return () => {
@@ -86,7 +68,6 @@ export const MultiplayerGameComponent: React.FC = () => {
       removeOnPlayerJoined();
       removeOnPlayerLeft();
       removeOnPlayerDied();
-      removeOnSpeedChanged();
     };
   }, [on, localPlayerId]);
 
@@ -119,12 +100,6 @@ export const MultiplayerGameComponent: React.FC = () => {
         case "D":
           direction = { x: 1, y: 0 };
           break;
-        case "r":
-        case "R":
-          if (deadMessage) {
-            window.location.reload();
-          }
-          break;
       }
 
       if (direction) {
@@ -134,12 +109,14 @@ export const MultiplayerGameComponent: React.FC = () => {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [emit, deadMessage]);
+  }, [emit]);
 
   const playerCount = Object.keys(gameState.players).length;
   const aliveCount = Object.values(gameState.players).filter(
     (p) => p.alive,
   ).length;
+
+  const localPlayer = localPlayerId ? gameState.players[localPlayerId] : null;
 
   return (
     <>
@@ -148,8 +125,8 @@ export const MultiplayerGameComponent: React.FC = () => {
         cursor={Cursor.POINTER}
         onPointerDown={exit}
         position={{
-          x: BOARD_WIDTH_SIZE * CELL_SIZE - 50,
-          y: 5,
+          x: BOARD_WIDTH_SIZE * CELL_SIZE - 31,
+          y: 8,
         }}
         text={"close [x]"}
       />
@@ -157,63 +134,42 @@ export const MultiplayerGameComponent: React.FC = () => {
       <ContainerComponent
         position={{
           x: 5,
-          y: 5,
+          y: 8,
         }}
       >
         <TextComponent
-          text={`Jugadores: ${playerCount} | Vivos: ${aliveCount}`}
+          text={`Players: ${playerCount} | Alive: ${aliveCount}`}
         />
       </ContainerComponent>
+
+      {localPlayer && (
+        <ContainerComponent
+          position={{
+            x: 5,
+            y: 24,
+          }}
+        >
+          <TextComponent
+            text={`Points: ${localPlayer.score} | Food: ${localPlayer.foodEaten} | Kills: ${localPlayer.kills}`}
+            tint={0xffff00}
+          />
+        </ContainerComponent>
+      )}
 
       <SpeedIndicatorComponent
         speedLevel={gameState.speedLevel}
         currentTickRate={gameState.currentTickRate}
         gameTimeSeconds={gameState.gameTimeSeconds}
         position={{
-          x: BOARD_WIDTH_SIZE * CELL_SIZE - 125,
-          y: 20,
+          x: BOARD_WIDTH_SIZE * CELL_SIZE - 104,
+          y: 24,
         }}
       />
-      {speedChangeMessage && (
-        <ContainerComponent
-          position={{
-            x: (BOARD_WIDTH_SIZE * CELL_SIZE) / 2 - 100,
-            y: 40,
-          }}
-        >
-          <GraphicsComponent
-            type={GraphicType.RECTANGLE}
-            width={200}
-            height={30}
-            alpha={0.8}
-            tint={0xff8800}
-          />
-          <TextComponent text={speedChangeMessage} position={{ x: 10, y: 8 }} />
-        </ContainerComponent>
-      )}
-
-      {deadMessage && (
-        <ContainerComponent
-          position={{
-            x: (BOARD_WIDTH_SIZE * CELL_SIZE) / 2 - 80,
-            y: (BOARD_HEIGHT_SIZE * CELL_SIZE) / 2,
-          }}
-        >
-          <GraphicsComponent
-            type={GraphicType.RECTANGLE}
-            width={160}
-            height={40}
-            alpha={0.8}
-            tint={0x000000}
-          />
-          <TextComponent text={deadMessage} position={{ x: 10, y: 10 }} />
-        </ContainerComponent>
-      )}
 
       <ContainerComponent
         position={{
           x: 5,
-          y: 20,
+          y: 45,
         }}
       >
         {gameState.food.map((food, index) => (

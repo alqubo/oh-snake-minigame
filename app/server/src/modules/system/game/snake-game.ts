@@ -96,6 +96,10 @@ export const snakeGame = () => {
       direction: { x: 1, y: 0 },
       color,
       alive: true,
+      score: 0,
+      foodEaten: 0,
+      kills: 0,
+      growthPending: 0,
     };
   };
 
@@ -119,8 +123,6 @@ export const snakeGame = () => {
       accountId,
       username,
     });
-
-    console.log(`Player ${username} joined the game`);
   };
 
   const removePlayer = (accountId: string) => {
@@ -138,8 +140,6 @@ export const snakeGame = () => {
       accountId,
       username: player.username,
     });
-
-    console.log(`Player ${player.username} left the game`);
   };
 
   const updateDirection = (accountId: string, newDirection: Direction) => {
@@ -178,17 +178,62 @@ export const snakeGame = () => {
     newHead.x = (newHead.x + BOARD_WIDTH_SIZE) % BOARD_WIDTH_SIZE;
     newHead.y = (newHead.y + BOARD_HEIGHT_SIZE) % BOARD_HEIGHT_SIZE;
 
+    // Check collision with all snakes
     for (const otherPlayer of Object.values(players)) {
       if (
         otherPlayer.snake.some((p) => p.x === newHead.x && p.y === newHead.y)
       ) {
         player.alive = false;
+
+        // Check if player hit another player (not self-collision)
+        if (otherPlayer.accountId !== player.accountId && otherPlayer.alive) {
+          // Killer takes all the victim's score and grows accordingly
+          const stolenScore = player.score;
+          const stolenFood = player.foodEaten;
+
+          otherPlayer.kills++;
+          otherPlayer.score += stolenScore;
+          otherPlayer.foodEaten += stolenFood;
+
+          // Make the killer grow by the amount of food the victim had eaten
+          otherPlayer.growthPending += stolenFood;
+
+          console.log(
+            `${otherPlayer.username} killed ${player.username} and stole ${stolenScore} points! Will grow ${stolenFood} segments. New total: ${otherPlayer.score}`,
+          );
+        } else if (otherPlayer.accountId === player.accountId) {
+          console.log(
+            `${player.username} committed suicide. No points transferred.`,
+          );
+        }
+
         broadcastToAll(Event.PLAYER_DIED, {
           accountId: player.accountId,
           username: player.username,
         });
+
+        // If killed by another player, victim loses all points
+        if (otherPlayer.accountId !== player.accountId) {
+          return;
+        }
+
+        console.log(
+          `${player.username} died by self-collision. Score: ${player.score}`,
+        );
+
+        if (player.score > 0) {
+          console.log(
+            `[Snake] Sending reward to ${player.username}: ${player.score} credits`,
+          );
+
+          System.worker.emit(ServerEvent.USER_REWARD, {
+            clientId: player.clientId,
+            amount: player.score,
+            reason: `Snake game: ${player.score} credits`,
+          });
+        }
+
         // TODO: añadir a la cola de espera
-        // TODO: reward para el que mató
         return false;
       }
     }
@@ -199,7 +244,14 @@ export const snakeGame = () => {
       (f) => f.x === newHead.x && f.y === newHead.y,
     );
     if (foodIndex !== -1) {
+      player.foodEaten++;
+      player.score++;
+      player.growthPending++;
       food[foodIndex] = randomFreePosition();
+    }
+
+    if (player.growthPending > 0) {
+      player.growthPending--;
     } else {
       player.snake.pop();
     }
@@ -256,7 +308,6 @@ export const snakeGame = () => {
     if (speedIncreaseLoop !== null) {
       clearInterval(speedIncreaseLoop);
       speedIncreaseLoop = null;
-      console.log("Speed increase loop stopped");
     }
   };
 
@@ -271,10 +322,6 @@ export const snakeGame = () => {
         clearInterval(gameLoop);
         gameLoop = setInterval(gameTick, currentTickRate);
       }
-
-      console.log(
-        `Speed increased! Level ${speedLevel}, Tick rate: ${currentTickRate}ms`,
-      );
 
       broadcastToAll(Event.SPEED_CHANGED, {
         speedLevel,
@@ -297,6 +344,9 @@ export const snakeGame = () => {
             snake: player.snake,
             color: player.color,
             alive: player.alive,
+            score: player.score,
+            foodEaten: player.foodEaten,
+            kills: player.kills,
           },
         ]),
       ),

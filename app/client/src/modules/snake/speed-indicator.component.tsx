@@ -5,6 +5,7 @@ import {
   GraphicType,
 } from "@openhotel/pixi-components";
 import { TextComponent } from "shared/components";
+import { TICK_RATE, MIN_TICK_RATE } from "shared/consts/snake.consts.ts";
 
 type Props = {
   speedLevel: number;
@@ -19,10 +20,8 @@ export const SpeedIndicatorComponent = ({
   gameTimeSeconds,
   position,
 }: Props) => {
-  const maxSpeed = 100; // TODO: add to consts
-  const minSpeed = 30; // TODO: add to consts
   const speedPercentage = Math.round(
-    ((maxSpeed - currentTickRate) / (maxSpeed - minSpeed)) * 100,
+    ((TICK_RATE - currentTickRate) / (TICK_RATE - MIN_TICK_RATE)) * 100,
   );
 
   const getSpeedColor = (percentage: number): number => {
@@ -41,40 +40,23 @@ export const SpeedIndicatorComponent = ({
 
   return (
     <ContainerComponent position={position}>
-      <GraphicsComponent
-        type={GraphicType.RECTANGLE}
-        width={120}
-        height={50}
-        alpha={0.7}
-        tint={0x000000}
-      />
-
-      <TextComponent text="VELOCIDAD" position={{ x: 10, y: 5 }} />
       <TextComponent
-        text={`Nivel ${speedLevel}`}
-        position={{ x: 10, y: 15 }}
+        text={`Level ${speedLevel}`}
+        position={{ x: 5, y: 0 }}
         tint={speedColor}
-        bold={true}
-      />
-
-      <TextComponent
-        text={`${speedPercentage}%`}
-        position={{ x: 70, y: 15 }}
-        tint={speedColor}
-        bold={true}
       />
 
       <TextComponent
         text={`⏱ ${timeString}`}
-        position={{ x: 10, y: 32 }}
+        position={{ x: 80, y: 0 }}
         fill={0xaaaaaa}
       />
 
-      <ContainerComponent position={{ x: 10, y: 27 }}>
+      <ContainerComponent position={{ x: 5, y: 9 }}>
         <GraphicsComponent
           type={GraphicType.RECTANGLE}
           width={100}
-          height={4}
+          height={3}
           alpha={0.3}
           tint={0xffffff}
         />
@@ -82,7 +64,7 @@ export const SpeedIndicatorComponent = ({
         <GraphicsComponent
           type={GraphicType.RECTANGLE}
           width={speedPercentage}
-          height={4}
+          height={3}
           alpha={0.8}
           tint={speedColor}
         />

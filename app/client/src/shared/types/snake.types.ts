@@ -14,6 +14,9 @@ export type PlayerSnake = {
   snake: Position[];
   color: number;
   alive: boolean;
+  score: number;
+  foodEaten: number;
+  kills: number;
 };
 
 export type GameState = {

@@ -17,4 +17,8 @@ export type PlayerSnake = {
   color: number;
   alive: boolean;
   nextDirection?: Direction;
+  score: number;
+  foodEaten: number;
+  kills: number;
+  growthPending: number;
 };
