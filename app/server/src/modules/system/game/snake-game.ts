@@ -178,16 +178,13 @@ export const snakeGame = () => {
     newHead.x = (newHead.x + BOARD_WIDTH_SIZE) % BOARD_WIDTH_SIZE;
     newHead.y = (newHead.y + BOARD_HEIGHT_SIZE) % BOARD_HEIGHT_SIZE;
 
-    // Check collision with all snakes
     for (const otherPlayer of Object.values(players)) {
       if (
         otherPlayer.snake.some((p) => p.x === newHead.x && p.y === newHead.y)
       ) {
         player.alive = false;
 
-        // Check if player hit another player (not self-collision)
         if (otherPlayer.accountId !== player.accountId && otherPlayer.alive) {
-          // Killer takes all the victim's score and grows accordingly
           const stolenScore = player.score;
           const stolenFood = player.foodEaten;
 
@@ -195,7 +192,6 @@ export const snakeGame = () => {
           otherPlayer.score += stolenScore;
           otherPlayer.foodEaten += stolenFood;
 
-          // Make the killer grow by the amount of food the victim had eaten
           otherPlayer.growthPending += stolenFood;
 
           console.log(
