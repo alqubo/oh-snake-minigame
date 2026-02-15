@@ -12,6 +12,7 @@ import {
   SPAWN_GRACE_TIME,
 } from "shared/consts/snake.consts.ts";
 import { Position, Direction, PlayerSnake } from "shared/types/main.ts";
+import { TickerQueue } from "@oh/queue";
 
 // TODO: random color
 const PLAYER_COLORS = [
@@ -28,8 +29,8 @@ const PLAYER_COLORS = [
 export const snakeGame = () => {
   const players: Record<string, PlayerSnake> = {};
   let food: Position[] = [];
-  let gameLoop: number | null = null;
-  let speedIncreaseLoop: number | null = null;
+  let gameLoopTaskId: number | null = null;
+  let speedIncreaseTaskId: number | null = null;
   let nextColorIndex = 0;
   let currentTickRate = TICK_RATE;
   let gameStartTime = 0;
@@ -262,14 +263,6 @@ export const snakeGame = () => {
             otherPlayer.foodEaten += stolenFood;
 
             otherPlayer.growthPending += stolenFood;
-
-            console.log(
-              `${otherPlayer.username} killed ${player.username} and stole ${stolenScore} points! Will grow ${stolenFood} segments. New total: ${otherPlayer.score}`,
-            );
-          } else if (otherPlayer.accountId === player.accountId) {
-            console.log(
-              `${player.username} committed suicide. No points transferred.`,
-            );
           }
 
           broadcastToAll(Event.PLAYER_DIED, {
@@ -282,15 +275,7 @@ export const snakeGame = () => {
             return;
           }
 
-          console.log(
-            `${player.username} died by self-collision. Score: ${player.score}`,
-          );
-
           if (player.score > 0) {
-            console.log(
-              `[Snake] Sending reward to ${player.username}: ${player.score} credits`,
-            );
-
             System.worker.emit(ServerEvent.USER_REWARD, {
               clientId: player.clientId,
               amount: player.score,
@@ -347,44 +332,45 @@ export const snakeGame = () => {
   };
 
   const startGameLoop = () => {
-    if (gameLoop !== null) return;
+    if (gameLoopTaskId !== null) return;
 
     currentTickRate = TICK_RATE;
     speedLevel = 1;
     gameStartTime = Date.now();
 
-    gameLoop = setInterval(gameTick, currentTickRate);
+    gameLoopTaskId = System.tasks.add({
+      type: TickerQueue.REPEAT,
+      repeatEvery: currentTickRate,
+      repeats: Number.MAX_SAFE_INTEGER,
+      onFunc: gameTick,
+    });
 
     startSpeedIncreaseLoop();
-
-    console.log(`Game loop started with tick rate: ${currentTickRate}ms`);
   };
 
   const stopGameLoop = () => {
-    if (gameLoop !== null) {
-      clearInterval(gameLoop);
-      gameLoop = null;
-      console.log("Game loop stopped");
+    if (gameLoopTaskId !== null) {
+      System.tasks.remove(gameLoopTaskId);
+      gameLoopTaskId = null;
     }
     stopSpeedIncreaseLoop();
   };
 
   const startSpeedIncreaseLoop = () => {
-    if (speedIncreaseLoop !== null) return;
+    if (speedIncreaseTaskId !== null) return;
 
-    speedIncreaseLoop = setInterval(() => {
-      increaseSpeed();
-    }, SPEED_INCREASE_INTERVAL);
-
-    console.log(
-      `Speed increase loop started (every ${SPEED_INCREASE_INTERVAL}ms)`,
-    );
+    speedIncreaseTaskId = System.tasks.add({
+      type: TickerQueue.REPEAT,
+      repeatEvery: SPEED_INCREASE_INTERVAL,
+      repeats: Number.MAX_SAFE_INTEGER,
+      onFunc: increaseSpeed,
+    });
   };
 
   const stopSpeedIncreaseLoop = () => {
-    if (speedIncreaseLoop !== null) {
-      clearInterval(speedIncreaseLoop);
-      speedIncreaseLoop = null;
+    if (speedIncreaseTaskId !== null) {
+      System.tasks.remove(speedIncreaseTaskId);
+      speedIncreaseTaskId = null;
     }
   };
 
@@ -395,9 +381,14 @@ export const snakeGame = () => {
       currentTickRate = newTickRate;
       speedLevel++;
 
-      if (gameLoop !== null) {
-        clearInterval(gameLoop);
-        gameLoop = setInterval(gameTick, currentTickRate);
+      if (gameLoopTaskId !== null) {
+        System.tasks.remove(gameLoopTaskId);
+        gameLoopTaskId = System.tasks.add({
+          type: TickerQueue.REPEAT,
+          repeatEvery: currentTickRate,
+          repeats: Number.MAX_SAFE_INTEGER,
+          onFunc: gameTick,
+        });
       }
 
       broadcastToAll(Event.SPEED_CHANGED, {
@@ -405,8 +396,6 @@ export const snakeGame = () => {
         tickRate: currentTickRate,
         gameTimeSeconds: Math.floor((Date.now() - gameStartTime) / 1000),
       });
-    } else {
-      console.log(`Maximum speed reached! Level ${speedLevel}`);
     }
   };
 

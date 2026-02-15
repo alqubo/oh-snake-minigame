@@ -120,17 +120,6 @@ export const MultiplayerGameComponent: React.FC = () => {
 
   return (
     <>
-      <TextComponent
-        eventMode={EventMode.STATIC}
-        cursor={Cursor.POINTER}
-        onPointerDown={exit}
-        position={{
-          x: BOARD_WIDTH_SIZE * CELL_SIZE - 31,
-          y: 8,
-        }}
-        text={"close [x]"}
-      />
-
       <ContainerComponent
         position={{
           x: 5,
@@ -141,6 +130,16 @@ export const MultiplayerGameComponent: React.FC = () => {
           text={`Players: ${playerCount} | Alive: ${aliveCount}`}
         />
       </ContainerComponent>
+
+      <SpeedIndicatorComponent
+        speedLevel={gameState.speedLevel}
+        currentTickRate={gameState.currentTickRate}
+        gameTimeSeconds={gameState.gameTimeSeconds}
+        position={{
+          x: BOARD_WIDTH_SIZE * CELL_SIZE - 104,
+          y: 8,
+        }}
+      />
 
       {localPlayer && (
         <ContainerComponent
@@ -155,16 +154,6 @@ export const MultiplayerGameComponent: React.FC = () => {
           />
         </ContainerComponent>
       )}
-
-      <SpeedIndicatorComponent
-        speedLevel={gameState.speedLevel}
-        currentTickRate={gameState.currentTickRate}
-        gameTimeSeconds={gameState.gameTimeSeconds}
-        position={{
-          x: BOARD_WIDTH_SIZE * CELL_SIZE - 104,
-          y: 24,
-        }}
-      />
 
       <ContainerComponent
         position={{

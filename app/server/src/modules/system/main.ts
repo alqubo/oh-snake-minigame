@@ -71,5 +71,6 @@ export const System = (() => {
     game: $game,
     worker: $worker,
     settings: $settings,
+    tasks: $tasks,
   };
 })();
