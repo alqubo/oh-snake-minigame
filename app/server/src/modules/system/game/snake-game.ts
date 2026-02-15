@@ -9,6 +9,7 @@ import {
   SPEED_INCREASE_INTERVAL,
   SPEED_INCREASE_AMOUNT,
   MIN_TICK_RATE,
+  SPAWN_GRACE_TIME,
 } from "shared/consts/snake.consts.ts";
 import { Position, Direction, PlayerSnake } from "shared/types/main.ts";
 import { TickerQueue } from "@oh/queue";
@@ -166,6 +167,8 @@ export const snakeGame = () => {
       foodEaten: 0,
       kills: 0,
       growthPending: 0,
+      invincible: true,
+      invincibilityEndTime: Date.now() + SPAWN_GRACE_TIME,
     };
   };
 
@@ -244,43 +247,45 @@ export const snakeGame = () => {
     newHead.x = (newHead.x + BOARD_WIDTH_SIZE) % BOARD_WIDTH_SIZE;
     newHead.y = (newHead.y + BOARD_HEIGHT_SIZE) % BOARD_HEIGHT_SIZE;
 
-    for (const otherPlayer of Object.values(players)) {
-      if (
-        otherPlayer.snake.some((p) => p.x === newHead.x && p.y === newHead.y)
-      ) {
-        player.alive = false;
+    if (!player.invincible) {
+      for (const otherPlayer of Object.values(players)) {
+        if (
+          otherPlayer.snake.some((p) => p.x === newHead.x && p.y === newHead.y)
+        ) {
+          player.alive = false;
 
-        if (otherPlayer.accountId !== player.accountId && otherPlayer.alive) {
-          const stolenScore = player.score;
-          const stolenFood = player.foodEaten;
+          if (otherPlayer.accountId !== player.accountId && otherPlayer.alive) {
+            const stolenScore = player.score;
+            const stolenFood = player.foodEaten;
 
-          otherPlayer.kills++;
-          otherPlayer.score += stolenScore;
-          otherPlayer.foodEaten += stolenFood;
+            otherPlayer.kills++;
+            otherPlayer.score += stolenScore;
+            otherPlayer.foodEaten += stolenFood;
 
-          otherPlayer.growthPending += stolenFood;
-        }
+            otherPlayer.growthPending += stolenFood;
+          }
 
-        broadcastToAll(Event.PLAYER_DIED, {
-          accountId: player.accountId,
-          username: player.username,
-        });
-
-        // If killed by another player, victim loses all points
-        if (otherPlayer.accountId !== player.accountId) {
-          return;
-        }
-
-        if (player.score > 0) {
-          System.worker.emit(ServerEvent.USER_REWARD, {
-            clientId: player.clientId,
-            amount: player.score,
-            reason: `Snake game: ${player.score} credits`,
+          broadcastToAll(Event.PLAYER_DIED, {
+            accountId: player.accountId,
+            username: player.username,
           });
-        }
 
-        // TODO: añadir a la cola de espera
-        return false;
+          // If killed by another player, victim loses all points
+          if (otherPlayer.accountId !== player.accountId) {
+            return;
+          }
+
+          if (player.score > 0) {
+            System.worker.emit(ServerEvent.USER_REWARD, {
+              clientId: player.clientId,
+              amount: player.score,
+              reason: `Snake game: ${player.score} credits`,
+            });
+          }
+
+          // TODO: añadir a la cola de espera
+          return false;
+        }
       }
     }
 
@@ -306,7 +311,18 @@ export const snakeGame = () => {
   };
 
   const gameTick = () => {
+    const currentTime = Date.now();
+
     for (const player of Object.values(players)) {
+      if (
+        player.invincible &&
+        player.invincibilityEndTime &&
+        currentTime >= player.invincibilityEndTime
+      ) {
+        player.invincible = false;
+        player.invincibilityEndTime = undefined;
+      }
+
       if (player.alive) {
         moveSnake(player);
       }
@@ -397,6 +413,7 @@ export const snakeGame = () => {
             score: player.score,
             foodEaten: player.foodEaten,
             kills: player.kills,
+            invincible: player.invincible,
           },
         ]),
       ),

@@ -7,6 +7,7 @@ import {
 import { TextComponent } from "shared/components";
 import { PlayerSnake } from "shared/types";
 import { CELL_SIZE } from "shared/consts/snake.consts.ts";
+import { useState, useEffect } from "react";
 
 type Props = {
   player: PlayerSnake;
@@ -14,11 +15,26 @@ type Props = {
 };
 
 export const PlayerSnakeComponent = ({ player, isLocalPlayer }: Props) => {
+  const [blinkState, setBlinkState] = useState(true);
+
+  useEffect(() => {
+    if (player.invincible) {
+      const interval = setInterval(() => {
+        setBlinkState((prev) => !prev);
+      }, 200);
+
+      return () => clearInterval(interval);
+    } else {
+      setBlinkState(true);
+    }
+  }, [player.invincible]);
+
   if (!player.alive) {
     return null;
   }
 
   const head = player.snake[0];
+  const alpha = player.invincible ? (blinkState ? 0.4 : 1) : 1;
 
   return (
     <ContainerComponent>
@@ -46,7 +62,7 @@ export const PlayerSnakeComponent = ({ player, isLocalPlayer }: Props) => {
             y: position.y * CELL_SIZE,
           }}
           tint={index === 0 ? player.color : player.color}
-          alpha={index === 0 ? 1 : 0.8}
+          alpha={index === 0 ? alpha : alpha * 0.8}
         />
       ))}
     </ContainerComponent>

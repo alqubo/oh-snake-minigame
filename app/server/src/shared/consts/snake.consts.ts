@@ -4,6 +4,8 @@ export const FOOD_COUNT = 3;
 export const INITIAL_SNAKE_LENGTH = 3;
 
 export const TICK_RATE = 100;
-export const MIN_TICK_RATE = 30;
+export const MIN_TICK_RATE = 40;
 export const SPEED_INCREASE_INTERVAL = 15_000;
 export const SPEED_INCREASE_AMOUNT = 5;
+
+export const SPAWN_GRACE_TIME = 3000;
