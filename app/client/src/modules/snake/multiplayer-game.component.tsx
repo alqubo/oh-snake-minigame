@@ -1,27 +1,15 @@
 import React, { useEffect, useState } from "react";
-import {
-  ContainerComponent,
-  Cursor,
-  EventMode,
-  GraphicsComponent,
-  GraphicType,
-  useWindow,
-} from "@openhotel/pixi-components";
-import { TextComponent } from "shared/components";
+import { useWindow } from "@openhotel/pixi-components";
 import { useProxy } from "shared/hooks";
-import { GameState, Direction } from "shared/types";
-import { PlayerSnakeComponent } from "./player-snake.component.tsx";
-import { FoodComponent } from "./food.component.tsx";
-import { SpeedIndicatorComponent } from "./speed-indicator.component.tsx";
-import {
-  BOARD_HEIGHT_SIZE,
-  BOARD_WIDTH_SIZE,
-  CELL_SIZE,
-} from "shared/consts/snake.consts.ts";
+import { GameState, Direction, GameStatus } from "shared/types";
 import { Event } from "shared/enums";
+import { WaitingRoomComponent } from "./waiting-room.component.tsx";
+import { GameFinishedComponent } from "./game-finished.component.tsx";
+import { WaitingForNextGameComponent } from "./waiting-for-next-game.component.tsx";
+import { PlayingGameComponent } from "./playing-game.component.tsx";
 
 export const MultiplayerGameComponent: React.FC = () => {
-  const { emit, ready, exit, on } = useProxy();
+  const { emit, ready, on } = useProxy();
   const { setSize } = useWindow();
 
   const [gameState, setGameState] = useState<GameState>({
@@ -30,6 +18,7 @@ export const MultiplayerGameComponent: React.FC = () => {
     speedLevel: 1,
     currentTickRate: 100,
     gameTimeSeconds: 0,
+    status: GameStatus.WAITING,
   });
 
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
@@ -58,9 +47,11 @@ export const MultiplayerGameComponent: React.FC = () => {
     });
 
     const removeOnPlayerDied = on(Event.PLAYER_DIED, (data: any) => {
-      if (data.accountId === localPlayerId) {
-        exit();
-      }
+      console.log(`Player ${data.username} died`);
+    });
+
+    const removeOnGameFinished = on(Event.GAME_FINISHED, (data: any) => {
+      console.log("Game finished", data);
     });
 
     return () => {
@@ -68,6 +59,7 @@ export const MultiplayerGameComponent: React.FC = () => {
       removeOnPlayerJoined();
       removeOnPlayerLeft();
       removeOnPlayerDied();
+      removeOnGameFinished();
     };
   }, [on, localPlayerId]);
 
@@ -111,75 +103,42 @@ export const MultiplayerGameComponent: React.FC = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, [emit]);
 
-  const playerCount = Object.keys(gameState.players).length;
-  const aliveCount = Object.values(gameState.players).filter(
-    (p) => p.alive,
-  ).length;
+  const allPlayers = Object.values(gameState.players);
+  const activePlayers = allPlayers.filter((p) => !p.waiting);
+  const waitingPlayers = allPlayers.filter((p) => p.waiting);
+
+  const playerCount = activePlayers.length;
+  const aliveCount = activePlayers.filter((p) => p.alive).length;
+  const waitingCount = waitingPlayers.length;
 
   const localPlayer = localPlayerId ? gameState.players[localPlayerId] : null;
+  const isLocalPlayerWaiting = localPlayer?.waiting || false;
+
+  if (isLocalPlayerWaiting && gameState.status === GameStatus.PLAYING) {
+    return (
+      <WaitingForNextGameComponent
+        gameState={gameState}
+        playerCount={playerCount}
+        waitingCount={waitingCount}
+      />
+    );
+  }
+
+  if (gameState.status === GameStatus.WAITING) {
+    return <WaitingRoomComponent gameState={gameState} />;
+  }
+
+  if (gameState.status === GameStatus.FINISHED) {
+    return <GameFinishedComponent gameState={gameState} />;
+  }
 
   return (
-    <>
-      <ContainerComponent
-        position={{
-          x: 5,
-          y: 8,
-        }}
-      >
-        <TextComponent
-          text={`Players: ${playerCount} | Alive: ${aliveCount}`}
-        />
-      </ContainerComponent>
-
-      <SpeedIndicatorComponent
-        speedLevel={gameState.speedLevel}
-        currentTickRate={gameState.currentTickRate}
-        gameTimeSeconds={gameState.gameTimeSeconds}
-        position={{
-          x: BOARD_WIDTH_SIZE * CELL_SIZE - 104,
-          y: 8,
-        }}
-      />
-
-      {localPlayer && (
-        <ContainerComponent
-          position={{
-            x: 5,
-            y: 24,
-          }}
-        >
-          <TextComponent
-            text={`Points: ${localPlayer.score} | Food: ${localPlayer.foodEaten} | Kills: ${localPlayer.kills}`}
-            tint={0xffff00}
-          />
-        </ContainerComponent>
-      )}
-
-      <ContainerComponent
-        position={{
-          x: 5,
-          y: 45,
-        }}
-      >
-        {gameState.food.map((food, index) => (
-          <FoodComponent key={`food-${index}`} position={food} />
-        ))}
-
-        {Object.entries(gameState.players).map(([accountId, player]) => (
-          <PlayerSnakeComponent
-            key={accountId}
-            player={player}
-            isLocalPlayer={accountId === localPlayerId}
-          />
-        ))}
-
-        <GraphicsComponent
-          type={GraphicType.RECTANGLE}
-          width={BOARD_WIDTH_SIZE * CELL_SIZE}
-          height={BOARD_HEIGHT_SIZE * CELL_SIZE}
-          alpha={0.2}
-        />
-      </ContainerComponent>
-    </>
+    <PlayingGameComponent
+      gameState={gameState}
+      localPlayerId={localPlayerId}
+      playerCount={playerCount}
+      aliveCount={aliveCount}
+      localPlayer={localPlayer}
+    />
   );
 };

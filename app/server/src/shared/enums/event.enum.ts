@@ -6,6 +6,8 @@ export enum Event {
   PLAYER_LEFT = "player_left",
   PLAYER_DIED = "player_died",
   SPEED_CHANGED = "speed_changed",
+  GAME_STARTING = "game_starting",
+  GAME_FINISHED = "game_finished",
 
   $$SETTINGS = "$$settings",
 }

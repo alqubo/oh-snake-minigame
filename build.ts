@@ -138,7 +138,13 @@ if (compileAll || server) {
 
   await copyDir(`${serverPath}/assets`, "./build/assets");
 
-  await Deno.copyFile(serverPath + "/settings.yml", "./build/settings.yml");
+  log(`Server - Updating settings.yml version...`, "gray");
+  const settingsContent = await Deno.readTextFile(serverPath + "/settings.yml");
+  const updatedSettings = settingsContent.replace(
+    /^version:\s*.+$/m,
+    `version: ${version}`,
+  );
+  await Deno.writeTextFile("./build/settings.yml", updatedSettings);
 
   log(`Server - Generating $mod.ts`, "gray");
   await Deno.writeTextFile($temporalModPath, serverMod);

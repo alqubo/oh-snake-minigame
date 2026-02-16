@@ -8,6 +8,12 @@ export type Direction = {
   y: number;
 };
 
+export enum GameStatus {
+  WAITING = "WAITING",
+  PLAYING = "PLAYING",
+  FINISHED = "FINISHED",
+}
+
 export type PlayerSnake = {
   accountId: string;
   username: string;
@@ -26,6 +32,16 @@ export type GameState = {
   speedLevel: number;
   currentTickRate: number;
   gameTimeSeconds: number;
+  status: GameStatus;
+  waitingTimeLeft?: number;
+  gameOverTimeLeft?: number;
+  winner?: {
+    accountId: string;
+    username: string;
+    score: number;
+    kills: number;
+    color: number;
+  };
 };
 
 export type MoveEvent = {
