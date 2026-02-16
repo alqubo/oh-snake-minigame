@@ -8,6 +8,12 @@ export type Direction = {
   y: number;
 };
 
+export enum GameState {
+  WAITING = "WAITING",
+  PLAYING = "PLAYING",
+  FINISHED = "FINISHED",
+}
+
 export type PlayerSnake = {
   accountId: string;
   username: string;

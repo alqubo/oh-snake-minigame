@@ -1,40 +1,48 @@
 import { System } from "modules/system/main.ts";
 import { Event, ServerEvent } from "shared/enums/event.enum.ts";
 import {
-  BOARD_WIDTH_SIZE,
+  BASE_FOOD_COUNT,
   BOARD_HEIGHT_SIZE,
-  FOOD_COUNT,
+  BOARD_WIDTH_SIZE,
+  FOOD_PER_PLAYER,
+  GAME_TIME_LIMIT,
   INITIAL_SNAKE_LENGTH,
-  TICK_RATE,
-  SPEED_INCREASE_INTERVAL,
-  SPEED_INCREASE_AMOUNT,
   MIN_TICK_RATE,
   SPAWN_GRACE_TIME,
+  SPEED_INCREASE_AMOUNT,
+  SPEED_INCREASE_INTERVAL,
+  TICK_RATE,
+  WAITING_ROOM_DURATION,
+  WINNER_BONUS,
 } from "shared/consts/snake.consts.ts";
-import { Position, Direction, PlayerSnake } from "shared/types/main.ts";
+import {
+  Direction,
+  GameState,
+  PlayerSnake,
+  Position,
+} from "shared/types/main.ts";
 import { TickerQueue } from "@oh/queue";
 
 // TODO: random color
 const PLAYER_COLORS = [
-  0x00cc00, // Verde
-  0x0000cc, // Azul
-  0xcc0000, // Rojo
-  0xcccc00, // Amarillo
-  0xcc00cc, // Magenta
-  0x00cccc, // Cyan
-  0xff8800, // Naranja
-  0x8800ff, // Púrpura
+  0xff7444, 0xfff8de, 0xb7bdf7, 0x576a8f, 0xddaed3, 0x6f8f72, 0x9e3b3b,
+  0x574964, 0xe5ba41, 0xd2dcb6, 0xfd7979, 0x6fa4af, 0x604652, 0xffdab3,
+  0x559e83,
 ];
 
 export const snakeGame = () => {
   const players: Record<string, PlayerSnake> = {};
+  const waitingPlayers: Record<string, PlayerSnake> = {};
   let food: Position[] = [];
   let gameLoopTaskId: number | null = null;
   let speedIncreaseTaskId: number | null = null;
+  let waitingRoomTaskId: number | null = null;
   let nextColorIndex = 0;
   let currentTickRate = TICK_RATE;
   let gameStartTime = 0;
   let speedLevel = 1;
+  let gameState: GameState = GameState.WAITING;
+  let waitingRoomStartTime = 0;
 
   const randomPosition = (): Position => {
     return {
@@ -88,9 +96,27 @@ export const snakeGame = () => {
   };
 
   const generateFood = () => {
+    const playerCount = Object.keys(players).length;
+    const foodCount = BASE_FOOD_COUNT + playerCount * FOOD_PER_PLAYER;
+
     food = [];
-    for (let i = 0; i < FOOD_COUNT; i++) {
+    for (let i = 0; i < foodCount; i++) {
       food.push(randomFreePosition());
+    }
+  };
+
+  const adjustFoodCount = () => {
+    const playerCount = Object.keys(players).length;
+    const targetFoodCount = BASE_FOOD_COUNT + playerCount * FOOD_PER_PLAYER;
+    const currentFoodCount = food.length;
+
+    if (currentFoodCount < targetFoodCount) {
+      const foodToAdd = targetFoodCount - currentFoodCount;
+      for (let i = 0; i < foodToAdd; i++) {
+        food.push(randomFreePosition());
+      }
+    } else if (currentFoodCount > targetFoodCount) {
+      food = food.slice(0, targetFoodCount);
     }
   };
 
@@ -127,9 +153,6 @@ export const snakeGame = () => {
       }
 
       if (canSpawn) {
-        console.log(
-          `${username} spawned at safe position (${startPos!.x}, ${startPos!.y}) after ${attempts} attempts`,
-        );
         break;
       }
 
@@ -173,42 +196,81 @@ export const snakeGame = () => {
   };
 
   const addPlayer = (accountId: string, username: string, clientId: string) => {
-    if (players[accountId]) {
+    if (players[accountId] || waitingPlayers[accountId]) {
       return;
     }
 
-    players[accountId] = spawnPlayer(accountId, username, clientId);
-
-    // TODO: add wait room
-    if (Object.keys(players).length === 1) {
-      generateFood();
-      startGameLoop();
+    if (gameState === GameState.FINISHED) {
+      gameState = GameState.WAITING;
+      waitingRoomStartTime = Date.now();
+      Object.keys(players).forEach((id) => delete players[id]);
+      food = [];
+      speedLevel = 1;
+      currentTickRate = TICK_RATE;
     }
 
-    broadcastGameState();
+    if (gameState === GameState.PLAYING) {
+      waitingPlayers[accountId] = spawnPlayer(accountId, username, clientId);
 
-    // TODO: añadir a la cola de espera si ha empezados
+      broadcastToAll(Event.PLAYER_JOINED, {
+        accountId,
+        username,
+        waiting: true,
+      });
+
+      broadcastGameState();
+      return;
+    }
+
+    // Add player to game (WAITING state)
+    players[accountId] = spawnPlayer(accountId, username, clientId);
+
+    if (Object.keys(players).length === 1) {
+      waitingRoomStartTime = Date.now();
+      startWaitingRoom();
+    }
+
     broadcastToAll(Event.PLAYER_JOINED, {
       accountId,
       username,
+      waiting: false,
     });
+
+    broadcastGameState();
   };
 
   const removePlayer = (accountId: string) => {
     const player = players[accountId];
-    if (!player) return;
+    const waitingPlayer = waitingPlayers[accountId];
 
-    delete players[accountId];
+    if (player) {
+      delete players[accountId];
 
-    if (Object.keys(players).length === 0) {
-      stopGameLoop();
-      food = [];
+      if (
+        Object.keys(players).length === 0 &&
+        gameState === GameState.WAITING
+      ) {
+        stopWaitingRoom();
+        food = [];
+      }
+
+      if (gameState === GameState.PLAYING) {
+        adjustFoodCount();
+        checkGameEnd();
+      }
+
+      broadcastToAll(Event.PLAYER_LEFT, {
+        accountId,
+        username: player.username,
+      });
+    } else if (waitingPlayer) {
+      delete waitingPlayers[accountId];
+
+      broadcastToAll(Event.PLAYER_LEFT, {
+        accountId,
+        username: waitingPlayer.username,
+      });
     }
-
-    broadcastToAll(Event.PLAYER_LEFT, {
-      accountId,
-      username: player.username,
-    });
   };
 
   const updateDirection = (accountId: string, newDirection: Direction) => {
@@ -270,20 +332,6 @@ export const snakeGame = () => {
             username: player.username,
           });
 
-          // If killed by another player, victim loses all points
-          if (otherPlayer.accountId !== player.accountId) {
-            return;
-          }
-
-          if (player.score > 0) {
-            System.worker.emit(ServerEvent.USER_REWARD, {
-              clientId: player.clientId,
-              amount: player.score,
-              reason: `Snake game: ${player.score} credits`,
-            });
-          }
-
-          // TODO: añadir a la cola de espera
           return false;
         }
       }
@@ -328,6 +376,7 @@ export const snakeGame = () => {
       }
     }
 
+    checkGameEnd();
     broadcastGameState();
   };
 
@@ -374,6 +423,150 @@ export const snakeGame = () => {
     }
   };
 
+  const startWaitingRoom = () => {
+    if (waitingRoomTaskId !== null) return;
+
+    waitingRoomTaskId = System.tasks.add({
+      type: TickerQueue.REPEAT,
+      repeatEvery: 1000,
+      repeats: Number.MAX_SAFE_INTEGER,
+      onFunc: updateWaitingRoom,
+    });
+  };
+
+  const stopWaitingRoom = () => {
+    if (waitingRoomTaskId !== null) {
+      System.tasks.remove(waitingRoomTaskId);
+      waitingRoomTaskId = null;
+    }
+  };
+
+  const updateWaitingRoom = () => {
+    if (gameState !== GameState.WAITING) {
+      stopWaitingRoom();
+      return;
+    }
+
+    const elapsedTime = Date.now() - waitingRoomStartTime;
+
+    if (elapsedTime >= WAITING_ROOM_DURATION) {
+      startGame();
+    } else {
+      broadcastGameState();
+    }
+  };
+
+  const startGame = () => {
+    gameState = GameState.PLAYING;
+    gameStartTime = Date.now();
+    stopWaitingRoom();
+
+    Object.entries(players).forEach(([accountId, player]) => {
+      players[accountId] = spawnPlayer(
+        accountId,
+        player.username,
+        player.clientId,
+      );
+    });
+
+    generateFood();
+    startGameLoop();
+
+    broadcastToAll(Event.GAME_STARTING, {
+      message: "Game is starting!",
+    });
+
+    broadcastGameState();
+  };
+
+  const checkGameEnd = () => {
+    if (gameState !== GameState.PLAYING) return;
+
+    const totalPlayers = Object.keys(players).length;
+    const alivePlayers = Object.values(players).filter((p) => p.alive);
+
+    if (alivePlayers.length === 0) {
+      endGame(null);
+      return;
+    }
+
+    if (totalPlayers >= 2 && alivePlayers.length === 1) {
+      endGame(alivePlayers[0]);
+      return;
+    }
+
+    const gameTime = Date.now() - gameStartTime;
+    if (gameTime >= GAME_TIME_LIMIT) {
+      const allPlayers = Object.values(players);
+      if (allPlayers.length === 0) {
+        endGame(null);
+        return;
+      }
+
+      const winner = allPlayers.reduce((prev, current) => {
+        if (current.score > prev.score) return current;
+        if (current.score === prev.score && current.kills > prev.kills)
+          return current;
+        return prev;
+      });
+      endGame(winner);
+    }
+  };
+
+  const endGame = (winner: PlayerSnake | null) => {
+    gameState = GameState.FINISHED;
+    stopGameLoop();
+    stopSpeedIncreaseLoop();
+
+    for (const player of Object.values(players)) {
+      if (player.score > 0) {
+        System.worker.emit(ServerEvent.USER_REWARD, {
+          clientId: player.clientId,
+          amount: player.score,
+          reason: `Snake game: ${player.score} credits`,
+        });
+      }
+    }
+
+    if (winner && winner.score > 0) {
+      const bonus = Math.floor(winner.score * WINNER_BONUS);
+      System.worker.emit(ServerEvent.USER_REWARD, {
+        clientId: winner.clientId,
+        amount: bonus,
+        reason: `Snake game winner bonus: ${bonus} credits`,
+      });
+    }
+
+    broadcastToAll(Event.GAME_FINISHED, {
+      winner: winner
+        ? {
+            accountId: winner.accountId,
+            username: winner.username,
+            score: winner.score,
+            kills: winner.kills,
+            foodEaten: winner.foodEaten,
+          }
+        : null,
+    });
+
+    Object.entries(waitingPlayers).forEach(([accountId, player]) => {
+      players[accountId] = player;
+      delete waitingPlayers[accountId];
+    });
+
+    // Wait 10 seconds before starting new game
+    setTimeout(() => {
+      if (Object.keys(players).length > 0) {
+        gameState = GameState.WAITING;
+        waitingRoomStartTime = Date.now();
+        startWaitingRoom();
+        broadcastGameState();
+      }
+    }, 10_000);
+
+    broadcastGameState();
+  };
+
   const increaseSpeed = () => {
     const newTickRate = currentTickRate - SPEED_INCREASE_AMOUNT;
 
@@ -400,9 +593,18 @@ export const snakeGame = () => {
   };
 
   const broadcastGameState = () => {
-    const gameState = {
+    const elapsedTime =
+      gameState === GameState.WAITING ? Date.now() - waitingRoomStartTime : 0;
+    const waitingTimeLeft =
+      gameState === GameState.WAITING
+        ? Math.max(0, Math.ceil((WAITING_ROOM_DURATION - elapsedTime) / 1000))
+        : undefined;
+
+    const allPlayers = { ...players, ...waitingPlayers };
+
+    const gameStateData = {
       players: Object.fromEntries(
-        Object.entries(players).map(([id, player]) => [
+        Object.entries(allPlayers).map(([id, player]) => [
           id,
           {
             accountId: player.accountId,
@@ -414,6 +616,7 @@ export const snakeGame = () => {
             foodEaten: player.foodEaten,
             kills: player.kills,
             invincible: player.invincible,
+            waiting: !!waitingPlayers[id],
           },
         ]),
       ),
@@ -421,14 +624,19 @@ export const snakeGame = () => {
       speedLevel,
       currentTickRate,
       gameTimeSeconds:
-        gameStartTime > 0 ? Math.floor((Date.now() - gameStartTime) / 1000) : 0,
+        gameStartTime > 0 && gameState === GameState.PLAYING
+          ? Math.floor((Date.now() - gameStartTime) / 1000)
+          : 0,
+      status: gameState,
+      waitingTimeLeft,
     };
 
-    broadcastToAll(Event.GAME_STATE, gameState);
+    broadcastToAll(Event.GAME_STATE, gameStateData);
   };
 
   const broadcastToAll = (event: Event, data: unknown) => {
-    for (const player of Object.values(players)) {
+    const allPlayers = { ...players, ...waitingPlayers };
+    for (const player of Object.values(allPlayers)) {
       System.worker.emit(ServerEvent.USER_DATA, {
         clientId: player.clientId,
         event,
