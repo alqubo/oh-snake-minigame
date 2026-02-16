@@ -7,6 +7,7 @@ import {
   FOOD_PER_PLAYER,
   GAME_OVER_COOLDOWN,
   GAME_TIME_LIMIT,
+  INACTIVITY_TIMEOUT,
   INITIAL_SNAKE_LENGTH,
   MIN_TICK_RATE,
   SPAWN_GRACE_TIME,
@@ -198,6 +199,7 @@ export const snakeGame = () => {
       growthPending: 0,
       invincible: true,
       invincibilityEndTime: Date.now() + SPAWN_GRACE_TIME,
+      lastActivityTime: Date.now(),
     };
   };
 
@@ -312,6 +314,7 @@ export const snakeGame = () => {
     }
 
     player.nextDirection = newDirection;
+    player.lastActivityTime = Date.now();
   };
 
   const moveSnake = (player: PlayerSnake): boolean => {
@@ -381,6 +384,48 @@ export const snakeGame = () => {
     return true;
   };
 
+  const checkInactivity = () => {
+    if (gameState !== GameState.PLAYING) return false;
+
+    const currentTime = Date.now();
+    const inactivePlayers: string[] = [];
+
+    for (const [accountId, player] of Object.entries(players)) {
+      if (
+        player.alive &&
+        currentTime - player.lastActivityTime > INACTIVITY_TIMEOUT
+      ) {
+        inactivePlayers.push(accountId);
+      }
+    }
+
+    for (const accountId of inactivePlayers) {
+      const player = players[accountId];
+      if (!player) continue;
+
+      const inactiveSeconds = Math.floor(
+        (currentTime - player.lastActivityTime) / 1000,
+      );
+      console.log(
+        `Player ${player.username} kicked for inactivity (${inactiveSeconds}s)`,
+      );
+
+      broadcastToAll(Event.PLAYER_LEFT, {
+        accountId: player.accountId,
+        username: player.username,
+      });
+
+      System.worker.emit(ServerEvent.DISCONNECT_USER, {
+        clientId: player.clientId,
+        reason: "Inactivity timeout",
+      });
+
+      removePlayer(accountId);
+    }
+
+    return inactivePlayers.length > 0;
+  };
+
   const gameTick = () => {
     const currentTime = Date.now();
 
@@ -399,6 +444,7 @@ export const snakeGame = () => {
       }
     }
 
+    checkInactivity();
     checkGameEnd();
     broadcastGameState();
   };
