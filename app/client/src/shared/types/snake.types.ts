@@ -34,10 +34,13 @@ export type GameState = {
   gameTimeSeconds: number;
   status: GameStatus;
   waitingTimeLeft?: number;
+  gameOverTimeLeft?: number;
   winner?: {
     accountId: string;
     username: string;
     score: number;
+    kills: number;
+    color: number;
   };
 };
 

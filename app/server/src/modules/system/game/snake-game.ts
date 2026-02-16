@@ -5,6 +5,7 @@ import {
   BOARD_HEIGHT_SIZE,
   BOARD_WIDTH_SIZE,
   FOOD_PER_PLAYER,
+  GAME_OVER_COOLDOWN,
   GAME_TIME_LIMIT,
   INITIAL_SNAKE_LENGTH,
   MIN_TICK_RATE,
@@ -37,12 +38,17 @@ export const snakeGame = () => {
   let gameLoopTaskId: number | null = null;
   let speedIncreaseTaskId: number | null = null;
   let waitingRoomTaskId: number | null = null;
+  let gameOverTaskId: number | null = null;
   let nextColorIndex = 0;
   let currentTickRate = TICK_RATE;
   let gameStartTime = 0;
   let speedLevel = 1;
   let gameState: GameState = GameState.WAITING;
   let waitingRoomStartTime = 0;
+  let gameOverCooldown = false;
+  let gameWinner: PlayerSnake | null = null;
+  let finalGameTimeSeconds = 0;
+  let gameOverStartTime = 0;
 
   const randomPosition = (): Position => {
     return {
@@ -200,9 +206,26 @@ export const snakeGame = () => {
       return;
     }
 
+    if (gameState === GameState.FINISHED && gameOverCooldown) {
+      waitingPlayers[accountId] = spawnPlayer(accountId, username, clientId);
+
+      broadcastToAll(Event.PLAYER_JOINED, {
+        accountId,
+        username,
+        waiting: true,
+      });
+
+      broadcastGameState();
+      return;
+    }
+
     if (gameState === GameState.FINISHED) {
       gameState = GameState.WAITING;
       waitingRoomStartTime = Date.now();
+      gameOverCooldown = false;
+      gameWinner = null;
+      finalGameTimeSeconds = 0;
+      gameOverStartTime = 0;
       Object.keys(players).forEach((id) => delete players[id]);
       food = [];
       speedLevel = 1;
@@ -456,9 +479,39 @@ export const snakeGame = () => {
     }
   };
 
+  const startGameOverCountdown = () => {
+    if (gameOverTaskId !== null) return;
+
+    gameOverTaskId = System.tasks.add({
+      type: TickerQueue.REPEAT,
+      repeatEvery: 1000,
+      repeats: Number.MAX_SAFE_INTEGER,
+      onFunc: updateGameOverCountdown,
+    });
+  };
+
+  const stopGameOverCountdown = () => {
+    if (gameOverTaskId !== null) {
+      System.tasks.remove(gameOverTaskId);
+      gameOverTaskId = null;
+    }
+  };
+
+  const updateGameOverCountdown = () => {
+    if (gameState !== GameState.FINISHED) {
+      stopGameOverCountdown();
+      return;
+    }
+
+    broadcastGameState();
+  };
+
   const startGame = () => {
     gameState = GameState.PLAYING;
     gameStartTime = Date.now();
+    gameWinner = null;
+    finalGameTimeSeconds = 0;
+    gameOverStartTime = 0;
     stopWaitingRoom();
 
     Object.entries(players).forEach(([accountId, player]) => {
@@ -515,6 +568,10 @@ export const snakeGame = () => {
 
   const endGame = (winner: PlayerSnake | null) => {
     gameState = GameState.FINISHED;
+    gameOverCooldown = true;
+    gameWinner = winner;
+    gameOverStartTime = Date.now();
+    finalGameTimeSeconds = Math.floor((Date.now() - gameStartTime) / 1000);
     stopGameLoop();
     stopSpeedIncreaseLoop();
 
@@ -554,15 +611,18 @@ export const snakeGame = () => {
       delete waitingPlayers[accountId];
     });
 
-    // Wait 10 seconds before starting new game
+    startGameOverCountdown();
+
     setTimeout(() => {
+      gameOverCooldown = false;
+      stopGameOverCountdown();
       if (Object.keys(players).length > 0) {
         gameState = GameState.WAITING;
         waitingRoomStartTime = Date.now();
         startWaitingRoom();
         broadcastGameState();
       }
-    }, 10_000);
+    }, GAME_OVER_COOLDOWN);
 
     broadcastGameState();
   };
@@ -600,6 +660,16 @@ export const snakeGame = () => {
         ? Math.max(0, Math.ceil((WAITING_ROOM_DURATION - elapsedTime) / 1000))
         : undefined;
 
+    const gameOverElapsedTime =
+      gameState === GameState.FINISHED ? Date.now() - gameOverStartTime : 0;
+    const gameOverTimeLeft =
+      gameState === GameState.FINISHED
+        ? Math.max(
+            0,
+            Math.ceil((GAME_OVER_COOLDOWN - gameOverElapsedTime) / 1000),
+          )
+        : undefined;
+
     const allPlayers = { ...players, ...waitingPlayers };
 
     const gameStateData = {
@@ -624,11 +694,23 @@ export const snakeGame = () => {
       speedLevel,
       currentTickRate,
       gameTimeSeconds:
-        gameStartTime > 0 && gameState === GameState.PLAYING
-          ? Math.floor((Date.now() - gameStartTime) / 1000)
-          : 0,
+        gameState === GameState.FINISHED
+          ? finalGameTimeSeconds
+          : gameStartTime > 0 && gameState === GameState.PLAYING
+            ? Math.floor((Date.now() - gameStartTime) / 1000)
+            : 0,
       status: gameState,
       waitingTimeLeft,
+      gameOverTimeLeft,
+      winner: gameWinner
+        ? {
+            accountId: gameWinner.accountId,
+            username: gameWinner.username,
+            score: gameWinner.score,
+            kills: gameWinner.kills,
+            color: gameWinner.color,
+          }
+        : undefined,
     };
 
     broadcastToAll(Event.GAME_STATE, gameStateData);
