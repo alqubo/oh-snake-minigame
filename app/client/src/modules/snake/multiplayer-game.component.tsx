@@ -117,6 +117,7 @@ export const MultiplayerGameComponent: React.FC = () => {
   if (isLocalPlayerWaiting && gameState.status === GameStatus.PLAYING) {
     return (
       <WaitingForNextGameComponent
+        gameState={gameState}
         playerCount={playerCount}
         waitingCount={waitingCount}
       />
