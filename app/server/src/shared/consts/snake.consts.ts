@@ -10,6 +10,7 @@ export const SPEED_INCREASE_INTERVAL = 15_000;
 export const SPEED_INCREASE_AMOUNT = 5;
 
 export const SPAWN_GRACE_TIME = 3000;
+export const INACTIVITY_TIMEOUT = 25_000;
 
 export const WAITING_ROOM_DURATION = 15_000;
 export const GAME_TIME_LIMIT = 300_000; // 5 min

@@ -29,4 +29,5 @@ export type PlayerSnake = {
   growthPending: number;
   invincible: boolean;
   invincibilityEndTime?: number;
+  lastActivityTime: number;
 };
