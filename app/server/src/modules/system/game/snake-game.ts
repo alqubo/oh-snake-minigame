@@ -60,7 +60,10 @@ export const snakeGame = () => {
 
   const isPositionOccupied = (pos: Position): boolean => {
     for (const player of Object.values(players)) {
-      if (player.snake.some((p) => p.x === pos.x && p.y === pos.y)) {
+      if (
+        player.alive &&
+        player.snake.some((p) => p.x === pos.x && p.y === pos.y)
+      ) {
         return true;
       }
     }
@@ -72,6 +75,8 @@ export const snakeGame = () => {
     let minDistance = Infinity;
 
     for (const player of Object.values(players)) {
+      if (!player.alive) continue;
+
       for (const segment of player.snake) {
         const distance =
           Math.abs(pos.x - segment.x) + Math.abs(pos.y - segment.y);
@@ -338,6 +343,7 @@ export const snakeGame = () => {
     if (!player.invincible) {
       for (const otherPlayer of Object.values(players)) {
         if (
+          otherPlayer.alive &&
           otherPlayer.snake.some((p) => p.x === newHead.x && p.y === newHead.y)
         ) {
           player.alive = false;
