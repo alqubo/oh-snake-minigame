@@ -3,6 +3,7 @@ export const BOARD_HEIGHT_SIZE = 33;
 export const BASE_FOOD_COUNT = 3;
 export const FOOD_PER_PLAYER = 2;
 export const INITIAL_SNAKE_LENGTH = 3;
+export const MIN_FOOD_SPAWN_DISTANCE = 5;
 
 export const TICK_RATE = 100;
 export const MIN_TICK_RATE = 40;

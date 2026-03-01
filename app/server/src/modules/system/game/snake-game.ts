@@ -9,6 +9,7 @@ import {
   GAME_TIME_LIMIT,
   INACTIVITY_TIMEOUT,
   INITIAL_SNAKE_LENGTH,
+  MIN_FOOD_SPAWN_DISTANCE,
   MIN_TICK_RATE,
   SPAWN_GRACE_TIME,
   SPEED_INCREASE_AMOUNT,
@@ -95,15 +96,44 @@ export const snakeGame = () => {
     return getMinDistanceToSnakes(pos) >= minDistance;
   };
 
+  const getMinDistanceToFood = (pos: Position): number => {
+    let minDistance = Infinity;
+
+    for (const foodPos of food) {
+      const distance =
+        Math.abs(pos.x - foodPos.x) + Math.abs(pos.y - foodPos.y);
+      minDistance = Math.min(minDistance, distance);
+    }
+
+    return minDistance;
+  };
+
   const randomFreePosition = (): Position => {
     let attempts = 0;
-    while (attempts < 100) {
+    const maxAttempts = 100;
+
+    while (attempts < maxAttempts) {
+      const pos = randomPosition();
+      if (!isPositionOccupied(pos)) {
+        if (
+          food.length === 0 ||
+          getMinDistanceToFood(pos) >= MIN_FOOD_SPAWN_DISTANCE
+        ) {
+          return pos;
+        }
+      }
+      attempts++;
+    }
+
+    attempts = 0;
+    while (attempts < maxAttempts) {
       const pos = randomPosition();
       if (!isPositionOccupied(pos)) {
         return pos;
       }
       attempts++;
     }
+
     return randomPosition();
   };
 
